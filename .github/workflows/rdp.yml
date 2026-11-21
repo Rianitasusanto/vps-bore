@@ -21,13 +21,10 @@ jobs:
 
       - name: Enable RDP + Create Admin User
         shell: pwsh
-        env:
-          RDP_PASS: ${{ secrets.RDP_PASSWORD }}
         run: |
-          $password = if ($env:RDP_PASS) { $env:RDP_PASS } else { "WindowsRDP2026@" }
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          $pass = ConvertTo-SecureString $password -AsPlainText -Force
+          $pass = ConvertTo-SecureString "WindowsRDP2026@" -AsPlainText -Force
           New-LocalUser "admin" -Password $pass -FullName "admin"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "admin"
           Add-LocalGroupMember -Group "Administrators" -Member "admin"
@@ -42,12 +39,8 @@ jobs:
 
       - name: Start Bore Tunnel & Send to Google Sheets
         shell: pwsh
-        env:
-          WEBHOOK_URL: ${{ secrets.GSHEET_WEBHOOK_URL }}
-          SECRET_KEY: ${{ secrets.GSHEET_SECRET }}
-          RDP_PASS: ${{ secrets.RDP_PASSWORD }}
         run: |
-          $PASS = if ($env:RDP_PASS) { $env:RDP_PASS } else { "WindowsRDP2026@" }
+          $WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzUMetW6CemhDnJwXwIJlmC39cWttyiNszjg4fECP_3sYYGPxN_Gw1nxxx0e0xlnvhfYg/exec"
           $USER = "admin"
           $lastFullAddress = ""
 
@@ -70,16 +63,14 @@ jobs:
                       Write-Host "Tunnel aktif di $fullAddress, mengirim ke Google Sheets..."
 
                       $payload = @{
-                          secret       = $env:SECRET_KEY
                           host         = "bore.pub"
                           port         = $portOnly
                           full_address = $fullAddress
                           username     = $USER
-                          password     = $PASS
                       } | ConvertTo-Json -Compress
 
                       try {
-                          $resp = Invoke-RestMethod -Uri $env:WEBHOOK_URL -Method Post -Body $payload -ContentType "application/json" -TimeoutSec 15
+                          $resp = Invoke-RestMethod -Uri $WEBHOOK_URL -Method Post -Body $payload -ContentType "application/json" -TimeoutSec 15
                           Write-Host "Status Google Sheets: $resp"
                       } catch {
                           Write-Host "Gagal mengirim ke Google Sheets: $_"
