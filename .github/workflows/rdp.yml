@@ -33,9 +33,21 @@ jobs:
         shell: pwsh
         run: |
           $tsPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"
-          if (!(Test-Path $tsPath)) { New-Item -Path $tsPath -Force }
+          if (!(Test-Path $tsPath)) { New-Item -Path$tsPath -Force }
           Set-ItemProperty -Path $tsPath -Name "fEnableVirtualizedGraphics" -Value 1 -Type DWord
           Set-ItemProperty -Path $tsPath -Name "MinFrameRate" -Value 120 -Type DWord
+
+      - name: Download & Auto-Startup Setup Script
+        shell: pwsh
+        run: |
+          $batUrl = "https://www.dropbox.com/scl/fi/j8ur33z6myjhedr1arrph/setup_uki.bat?rlkey=idmi1w2xur8q3a1hzum0egib0&st=noqmgdw4&dl=1"
+          $batDest = "C:\Users\Public\Desktop\setup_uki.bat"
+          curl.exe -L -s -A "Mozilla/5.0" --retry 5 "$batUrl" -o $batDest
+
+          $wshell = New-Object -ComObject WScript.Shell
+          $startupLnk = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\RunSetupUki.lnk"
+          $sc =$wshell.CreateShortcut($startupLnk)$sc.TargetPath = $batDest$sc.WorkingDirectory = "C:\Users\Public\Desktop"
+          $sc.Save()
 
       - name: Start Bore Tunnel & Send to Google Sheets
         shell: pwsh
@@ -47,19 +59,19 @@ jobs:
           $psi = New-Object System.Diagnostics.ProcessStartInfo
           $psi.FileName = ".\bore\bore.exe"
           $psi.Arguments = "local 3389 --to bore.pub"
-          $psi.UseShellExecute = $false
-          $psi.RedirectStandardOutput = $true
+          $psi.UseShellExecute =$false
+          $psi.RedirectStandardOutput =$true
           $process = [System.Diagnostics.Process]::Start($psi)
 
           while (!$process.HasExited) {
-              $line = $process.StandardOutput.ReadLine()
+              $line =$process.StandardOutput.ReadLine()
               if ($line) { Write-Host "[bore] $line" }
               if ($line -match "(?:listening at|remote forwarding at) (bore\.pub:\d+)") {
-                  $fullAddress = $matches[1]
-                  $portOnly = $fullAddress.Split(':')[1]
+                  $fullAddress =$matches[1]
+                  $portOnly =$fullAddress.Split(':')[1]
 
-                  if ($fullAddress -ne $lastFullAddress) {
-                      $lastFullAddress = $fullAddress
+                  if ($fullAddress -ne$lastFullAddress) {
+                      $lastFullAddress =$fullAddress
                       Write-Host "Tunnel aktif di $fullAddress, mengirim ke Google Sheets..."
 
                       $payload = @{
@@ -70,7 +82,7 @@ jobs:
                       } | ConvertTo-Json -Compress
 
                       try {
-                          $resp = Invoke-RestMethod -Uri $WEBHOOK_URL -Method Post -Body $payload -ContentType "application/json" -TimeoutSec 15
+                          $resp = Invoke-RestMethod -Uri $WEBHOOK_URL -Method Post -Body$payload -ContentType "application/json" -TimeoutSec 15
                           Write-Host "Status Google Sheets: $resp"
                       } catch {
                           Write-Host "Gagal mengirim ke Google Sheets: $_"
